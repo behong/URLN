@@ -1,3 +1,19 @@
+# URL → Notion Sender
+
+GitHub Pages에서 URL/제목/메모를 입력하면  
+Vercel 서버리스 API를 통해 **Notion Database**에 자동 저장되는 간단한 툴입니다.
+
+---
+
+## 🚀 프로젝트 개요
+- **Frontend**: GitHub Pages (`index.html`)
+- **Backend**: Vercel Serverless Function (`/api/submit.ts`)
+- **DB**: Notion Database (Title, URL, Notes 속성 필요)
+
+---
+
+## 📂 프로젝트 구조
+
 
 ---
 
