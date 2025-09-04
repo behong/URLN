@@ -14,9 +14,7 @@ function cors(res: VercelResponse) {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
 
   if (!NOTION_TOKEN || !NOTION_DATABASE_ID) {
     return res.status(500).json({
@@ -27,11 +25,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { url, title, notes, category } = (req.body || {}) as {
+    // 기대 형태: { url: string; title?: string; notes?: string }
+    const { url, title, notes } = (req.body || {}) as {
       url?: string;
       title?: string;
       notes?: string;
-      category?: string[];
     };
 
     if (!url || typeof url !== 'string') {
@@ -43,6 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ ok: false, error: 'invalid url' });
     }
 
+    // Notion properties
     const properties: Record<string, any> = {
       Title: {
         title: [
@@ -55,46 +54,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       URL: { url },
     };
 
-    // 카테고리 → multi-select
-    if (Array.isArray(category) && category.length) {
-      properties.Category = {
-        multi_select: category
-          .map((name) => (typeof name === 'string' ? name.trim() : ''))
-          .filter((name) => !!name)
-          .map((name) => ({ name })),
-      };
-    }
-
-    // Notes → DB 속성(rich_text)
-    if (typeof notes === 'string' && notes.trim().length) {
-      properties.Notes = {
-        rich_text: [
-          {
-            type: 'text',
-            text: { content: notes.toString().slice(0, 2000) },
-          },
-        ],
-      };
-    }
-
-    // Notes → 본문(children 블록)
-    const children =
+    // Notes → DB 속성 (rich_text)
+    const notesText =
       typeof notes === 'string' && notes.trim().length
-        ? [
-            {
-              object: 'block',
-              type: 'paragraph',
-              paragraph: {
-                rich_text: [
-                  {
-                    type: 'text',
-                    text: { content: notes.toString().slice(0, 2000) },
-                  },
-                ],
-              },
+        ? notes.toString().slice(0, 2000)
+        : '';
+
+    if (notesText) {
+      properties.Notes = {
+        rich_text: [{ type: 'text', text: { content: notesText } }],
+      };
+    }
+
+    // Notes → 페이지 본문(children 블록)
+    const children = notesText
+      ? [
+          {
+            object: 'block',
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [{ type: 'text', text: { content: notesText } }],
             },
-          ]
-        : [];
+          },
+        ]
+      : [];
 
     const payload = {
       parent: { database_id: NOTION_DATABASE_ID },
@@ -114,9 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!r.ok) {
       const text = await r.text();
-      return res
-        .status(r.status)
-        .json({ ok: false, error: 'notion_error', detail: text });
+      return res.status(r.status).json({ ok: false, error: 'notion_error', detail: text });
     }
 
     const data = (await r.json()) as { id: string };
