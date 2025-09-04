@@ -1,128 +1,120 @@
-<!--
-GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달) 예시
--->
-<!DOCTYPE html>
-<html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>URL → Notion Sender</title>
-    <script src="https://cdn.tailwindcss.com">// 초기 카테고리 기본값들 (원하는 값으로 변경)
-      const DEFAULT_CATEGORIES = ["AI","Business","Personal","Tech","Design","Learning"];
-      function syncOptions(list){
-        categorySelect.innerHTML='';
-        list.forEach(name=>{
-          const opt=document.createElement('option');
-          opt.value=name; opt.textContent=name; categorySelect.appendChild(opt);
-        });
-      }
-      syncOptions(DEFAULT_CATEGORIES);
-      categoryAddBtn?.addEventListener('click', ()=>{
-        const name=(categoryAdd.value||'').trim();
-        if(!name) return; 
-        const exists=[...categorySelect.options].some(o=>o.value.toLowerCase()===name.toLowerCase());
-        if(!exists){
-          const opt=document.createElement('option');
-          opt.value=name; opt.textContent=name; categorySelect.appendChild(opt);
-        }
-        categoryAdd.value='';
-      });
-    </script>
-  </head>
-  <body class="min-h-screen bg-gray-50 text-gray-900">
-    <main class="max-w-2xl mx-auto p-6">
-      <h1 class="text-2xl font-bold mb-2">URL → Notion 전송</h1>
-      <p class="text-sm text-gray-600 mb-6">GitHub Pages에서 URL을 입력하면 Vercel 서버리스 API를 통해 노션 DB로 저장됩니다.</p>
+// api/submit.ts
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-      <input type="hidden" id="apiBase" value="https://urln.vercel.app" />
+const NOTION_TOKEN = process.env.NOTION_TOKEN as string;
+const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID as string;
+const NOTION_VERSION = '2022-06-28';
 
-      <form id="urlForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium mb-1" for="url">URL</label>
-          <input id="url" type="url" required placeholder="https://example.com/post" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1" for="title">제목(선택)</label>
-          <input id="title" type="text" placeholder="자동으로 페이지 제목으로 저장" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1" for="category">카테고리(선택)</label>
-          <div class="space-y-2">
-            <select id="category" multiple class="w-full rounded-lg border border-gray-300 px-3 py-2 h-28 focus:outline-none focus:ring-2 focus:ring-black/10"></select>
-            <div class="flex gap-2">
-              <input id="categoryAdd" type="text" placeholder="새 카테고리 추가" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
-              <button type="button" id="categoryAddBtn" class="rounded-lg border px-3 py-2">추가</button>
-            </div>
-            <p class="text-xs text-gray-500">여러 항목을 선택하세요(⌘/Ctrl 클릭). 필요하면 위 입력창으로 새 항목을 추가할 수 있습니다. 노션 DB의 <code>Category</code> <em>multi-select</em>로 저장됩니다.</p>
-          </div>
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1" for="notes">메모(선택)</label>
-          <textarea id="notes" rows="3" placeholder="간단 메모를 함께 보낼 수 있어요" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10"></textarea>
-        </div>
-        <button type="submit" class="w-full rounded-xl bg-black text-white py-3 font-semibold hover:bg-black/90">노션으로 전송</button>
-      </form>
+function cors(res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
-      <div id="result" class="mt-6 hidden"></div>
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  cors(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') {
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+  }
 
-      <section class="mt-12 prose prose-sm">
-        <h2>README: 설정 가이드</h2>
-        <p>현재 API 엔드포인트는 <code>https://urln.vercel.app/api/submit</code> 으로 고정되어 있습니다.</p>
-        <ul>
-          <li>폼의 <strong>카테고리</strong>는 다중 선택(select multiple) 방식입니다.</li>
-          <li>선택된 값들은 노션 DB의 <code>Category</code> <em>multi-select</em> 속성으로 저장됩니다.</li>
-        </ul>
-      </section>
-    </main>
+  if (!NOTION_TOKEN || !NOTION_DATABASE_ID) {
+    return res.status(500).json({
+      ok: false,
+      error: 'missing_env',
+      detail: 'NOTION_TOKEN / NOTION_DATABASE_ID are required',
+    });
+  }
 
-    <script>
-      const form = document.getElementById('urlForm');
-      const result = document.getElementById('result');
-      const apiBase = document.getElementById('apiBase');
-      const categorySelect = document.getElementById('category');
-      const categoryAdd = document.getElementById('categoryAdd');
-      const categoryAddBtn = document.getElementById('categoryAddBtn');
+  try {
+    const { url, title, notes } = (req.body || {}) as {
+      url?: string;
+      title?: string;
+      notes?: string;
+    };
 
-      function show(msg, ok = true) {
-        result.className = 'mt-6 rounded-xl border p-4 ' + (ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50');
-        result.innerHTML = '<pre class="text-sm whitespace-pre-wrap">' + msg + '</pre>';
-        result.classList.remove('hidden');
-      }
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ ok: false, error: 'url is required' });
+    }
+    try {
+      new URL(url);
+    } catch {
+      return res.status(400).json({ ok: false, error: 'invalid url' });
+    }
 
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const base = (apiBase.value || '').replace(/\/$/, '');
-        if (!base) return show('API 엔드포인트가 비어 있습니다.', false);
+    const properties: Record<string, any> = {
+      Title: {
+        title: [
+          {
+            type: 'text',
+            text: { content: (title?.trim() || url).slice(0, 2000) },
+          },
+        ],
+      },
+      URL: { url },
+    };
 
-        const url = (document.getElementById('url').value || '').trim();
-        const title = (document.getElementById('title').value || '').trim();
-        const notes = (document.getElementById('notes').value || '').trim();
-        const category = [...categorySelect.selectedOptions].map(o=>o.value);
-        try { new URL(url); } catch { return show('유효한 URL을 입력하세요.', false); }
+    // Notes → DB 속성(rich_text)
+    if (typeof notes === 'string' && notes.trim().length) {
+      properties.Notes = {
+        rich_text: [
+          {
+            type: 'text',
+            text: { content: notes.toString().slice(0, 2000) },
+          },
+        ],
+      };
+    }
 
-        show('전송 중...', true);
-        try {
-          const r = await fetch(base + '/api/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, title, notes, category })
-          });
-          const data = await r.json().catch(() => ({}));
-          if (!r.ok || !data.ok) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
-          show('성공! Notion Page ID: ' + data.page_id);
-          form.reset();
-        } catch (err) {
-          show('실패: ' + (err?.message || err), false);
-        }
-      });
-          const data = await r.json().catch(() => ({}));
-          if (!r.ok || !data.ok) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
-          show('성공! Notion Page ID: ' + data.page_id);
-          form.reset();
-        } catch (err) {
-          show('실패: ' + (err?.message || err), false);
-        }
-      });
-    </script>
-  </body>
-</html>
+    // Notes → 본문(children 블록)
+    const children =
+      typeof notes === 'string' && notes.trim().length
+        ? [
+            {
+              object: 'block',
+              type: 'paragraph',
+              paragraph: {
+                rich_text: [
+                  {
+                    type: 'text',
+                    text: { content: notes.toString().slice(0, 2000) },
+                  },
+                ],
+              },
+            },
+          ]
+        : [];
+
+    const payload = {
+      parent: { database_id: NOTION_DATABASE_ID },
+      properties,
+      children,
+    };
+
+    const r = await fetch('https://api.notion.com/v1/pages', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${NOTION_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': NOTION_VERSION,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!r.ok) {
+      const text = await r.text();
+      return res
+        .status(r.status)
+        .json({ ok: false, error: 'notion_error', detail: text });
+    }
+
+    const data = (await r.json()) as { id: string };
+    return res.status(200).json({ ok: true, page_id: data.id });
+  } catch (err: any) {
+    return res.status(500).json({
+      ok: false,
+      error: 'server_error',
+      detail: err?.message || String(err),
+    });
+  }
+}
