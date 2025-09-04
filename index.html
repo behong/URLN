@@ -1,11 +1,5 @@
 <!--
 GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달) 예시
-1) 이 index.html을 GitHub Pages에 올립니다.
-2) /api/submit 은 Vercel(무료)로 배포하는 서버리스 함수가 처리합니다.
-   - 환경변수: NOTION_TOKEN, NOTION_DATABASE_ID
-3) 아래 README를 따라 설정하면, 입력한 URL이 지정한 노션 데이터베이스로 생성됩니다.
---><!--
-GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달) 예시
 -->
 <!DOCTYPE html>
 <html lang="ko">
@@ -13,14 +7,33 @@ GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달)
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>URL → Notion Sender</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com">// 초기 카테고리 기본값들 (원하는 값으로 변경)
+      const DEFAULT_CATEGORIES = ["AI","Business","Personal","Tech","Design","Learning"];
+      function syncOptions(list){
+        categorySelect.innerHTML='';
+        list.forEach(name=>{
+          const opt=document.createElement('option');
+          opt.value=name; opt.textContent=name; categorySelect.appendChild(opt);
+        });
+      }
+      syncOptions(DEFAULT_CATEGORIES);
+      categoryAddBtn?.addEventListener('click', ()=>{
+        const name=(categoryAdd.value||'').trim();
+        if(!name) return; 
+        const exists=[...categorySelect.options].some(o=>o.value.toLowerCase()===name.toLowerCase());
+        if(!exists){
+          const opt=document.createElement('option');
+          opt.value=name; opt.textContent=name; categorySelect.appendChild(opt);
+        }
+        categoryAdd.value='';
+      });
+    </script>
   </head>
   <body class="min-h-screen bg-gray-50 text-gray-900">
     <main class="max-w-2xl mx-auto p-6">
       <h1 class="text-2xl font-bold mb-2">URL → Notion 전송</h1>
       <p class="text-sm text-gray-600 mb-6">GitHub Pages에서 URL을 입력하면 Vercel 서버리스 API를 통해 노션 DB로 저장됩니다.</p>
 
-      <!-- API 엔드포인트 입력칸 제거하고 기본값 고정 -->
       <input type="hidden" id="apiBase" value="https://urln.vercel.app" />
 
       <form id="urlForm" class="space-y-4">
@@ -31,6 +44,17 @@ GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달)
         <div>
           <label class="block text-sm font-medium mb-1" for="title">제목(선택)</label>
           <input id="title" type="text" placeholder="자동으로 페이지 제목으로 저장" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1" for="category">카테고리(선택)</label>
+          <div class="space-y-2">
+            <select id="category" multiple class="w-full rounded-lg border border-gray-300 px-3 py-2 h-28 focus:outline-none focus:ring-2 focus:ring-black/10"></select>
+            <div class="flex gap-2">
+              <input id="categoryAdd" type="text" placeholder="새 카테고리 추가" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
+              <button type="button" id="categoryAddBtn" class="rounded-lg border px-3 py-2">추가</button>
+            </div>
+            <p class="text-xs text-gray-500">여러 항목을 선택하세요(⌘/Ctrl 클릭). 필요하면 위 입력창으로 새 항목을 추가할 수 있습니다. 노션 DB의 <code>Category</code> <em>multi-select</em>로 저장됩니다.</p>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium mb-1" for="notes">메모(선택)</label>
@@ -44,6 +68,10 @@ GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달)
       <section class="mt-12 prose prose-sm">
         <h2>README: 설정 가이드</h2>
         <p>현재 API 엔드포인트는 <code>https://urln.vercel.app/api/submit</code> 으로 고정되어 있습니다.</p>
+        <ul>
+          <li>폼의 <strong>카테고리</strong>는 다중 선택(select multiple) 방식입니다.</li>
+          <li>선택된 값들은 노션 DB의 <code>Category</code> <em>multi-select</em> 속성으로 저장됩니다.</li>
+        </ul>
       </section>
     </main>
 
@@ -51,6 +79,9 @@ GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달)
       const form = document.getElementById('urlForm');
       const result = document.getElementById('result');
       const apiBase = document.getElementById('apiBase');
+      const categorySelect = document.getElementById('category');
+      const categoryAdd = document.getElementById('categoryAdd');
+      const categoryAddBtn = document.getElementById('categoryAddBtn');
 
       function show(msg, ok = true) {
         result.className = 'mt-6 rounded-xl border p-4 ' + (ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50');
@@ -66,6 +97,7 @@ GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달)
         const url = (document.getElementById('url').value || '').trim();
         const title = (document.getElementById('title').value || '').trim();
         const notes = (document.getElementById('notes').value || '').trim();
+        const category = [...categorySelect.selectedOptions].map(o=>o.value);
         try { new URL(url); } catch { return show('유효한 URL을 입력하세요.', false); }
 
         show('전송 중...', true);
@@ -73,7 +105,7 @@ GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달)
           const r = await fetch(base + '/api/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, title, notes })
+            body: JSON.stringify({ url, title, notes, category })
           });
           const data = await r.json().catch(() => ({}));
           if (!r.ok || !data.ok) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
@@ -83,119 +115,6 @@ GitHub Pages 정적 프런트엔드 + Vercel Serverless API(노션으로 전달)
           show('실패: ' + (err?.message || err), false);
         }
       });
-    </script>
-  </body>
-</html>
-
-<!DOCTYPE html>
-<html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>URL → Notion Sender</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="min-h-screen bg-gray-50 text-gray-900">
-    <main class="max-w-2xl mx-auto p-6">
-      <h1 class="text-2xl font-bold mb-2">URL → Notion 전송</h1>
-      <p class="text-sm text-gray-600 mb-6">GitHub Pages에서 URL을 입력하면 Vercel 서버리스 API를 통해 노션 DB로 저장됩니다.</p>
-
-      <!-- 설정: 배포 후 본인 API 엔드포인트로 바꾸세요 -->
-      <div class="mb-4">
-        <label class="block text-sm font-medium mb-1" for="apiBase">API 엔드포인트</label>
-        <input id="apiBase" type="url" placeholder="https://your-vercel-app.vercel.app" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
-        <p class="text-xs text-gray-500 mt-1">끝에 <code>/api/submit</code> 없이, 도메인만 적습니다.</p>
-      </div>
-
-      <form id="urlForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium mb-1" for="url">URL</label>
-          <input id="url" type="url" required placeholder="https://example.com/post" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1" for="title">제목(선택)</label>
-          <input id="title" type="text" placeholder="자동으로 페이지 제목으로 저장" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1" for="notes">메모(선택)</label>
-          <textarea id="notes" rows="3" placeholder="간단 메모를 함께 보낼 수 있어요" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10"></textarea>
-        </div>
-        <button type="submit" class="w-full rounded-xl bg-black text-white py-3 font-semibold hover:bg-black/90">노션으로 전송</button>
-      </form>
-
-      <div id="result" class="mt-6 hidden"></div>
-
-      <section class="mt-12 prose prose-sm">
-        <h2>README: 설정 가이드</h2>
-        <ol>
-          <li><strong>노션 DB 준비</strong>
-            <ul>
-              <li>노션에서 데이터베이스(보드/테이블) 하나 생성</li>
-              <li>필수 속성:
-                <ul>
-                  <li><code>Title</code> (제목) – <em>title</em> 타입</li>
-                  <li><code>URL</code> – <em>url</em> 타입</li>
-                  <li><code>Notes</code> – <em>rich_text</em> 타입 (선택)</li>
-                </ul>
-              </li>
-              <li>주소창에서 데이터베이스 ID 복사 (페이지 URL 중 32자-하이픈 제거 형태도 허용)</li>
-              <li>노션 ▶︎ <em>Settings & Members → Connections</em>에서 Integrations 만들고, 해당 DB에 연결(Share)로 권한 부여</li>
-            </ul>
-          </li>
-          <li><strong>Vercel 서버리스 API</strong>
-            <ul>
-              <li>새 프로젝트 생성 후, 아래 <em>api/submit.ts</em> 파일 추가</li>
-              <li>프로젝트 환경변수 설정:
-                <ul>
-                  <li><code>NOTION_TOKEN</code> = 시크릿 통합(Integration) 토큰</li>
-                  <li><code>NOTION_DATABASE_ID</code> = 위에서 복사한 DB ID</li>
-                </ul>
-              </li>
-            </ul>
-          </li>
-          <li><strong>GitHub Pages 프런트</strong>
-            <ul>
-              <li>이 <code>index.html</code>을 리포지토리에 올리고 Pages 활성화</li>
-              <li>페이지에서 상단의 <em>API 엔드포인트</em>에 본인 Vercel 도메인(예: <code>https://your-app.vercel.app</code>) 입력</li>
-            </ul>
-          </li>
-        </ol>
-
-        
-
-        <h3>프런트엔드 JS (이 페이지 하단 스크립트)</h3>
-        <p>폼 제출 시 API로 <code>{ url, title, notes }</code>를 POST 합니다.</p>
-      </section>
-    </main>
-
-    <script>
-      const form = document.getElementById('urlForm');
-      const result = document.getElementById('result');
-      const apiBase = document.getElementById('apiBase');
-
-      function show(msg, ok = true) {
-        result.className = 'mt-6 rounded-xl border p-4 ' + (ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50');
-        result.innerHTML = '<pre class="text-sm whitespace-pre-wrap">' + msg + '</pre>';
-        result.classList.remove('hidden');
-      }
-
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const base = (apiBase.value || '').replace(/\/$/, '');
-        if (!base) return show('API 엔드포인트를 먼저 입력하세요.', false);
-
-        const url = (document.getElementById('url').value || '').trim();
-        const title = (document.getElementById('title').value || '').trim();
-        const notes = (document.getElementById('notes').value || '').trim();
-        try { new URL(url); } catch { return show('유효한 URL을 입력하세요.', false); }
-
-        show('전송 중...', true);
-        try {
-          const r = await fetch(base + '/api/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, title, notes })
-          });
           const data = await r.json().catch(() => ({}));
           if (!r.ok || !data.ok) throw new Error(data.detail || data.error || ('HTTP ' + r.status));
           show('성공! Notion Page ID: ' + data.page_id);
