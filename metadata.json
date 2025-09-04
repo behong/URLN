@@ -1,0 +1,5 @@
+{
+  "name": "URL to Notion Sender",
+  "description": "A simple web application to enter a URL and send it to a Notion database. This app provides the user interface to capture the URL.",
+  "requestFramePermissions": []
+}
