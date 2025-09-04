@@ -31,7 +31,7 @@ GitHub Pages 정적 프런트엔드 → Vercel Serverless(API) → Notion 저장
             <button type="button" id="apiAdd" class="rounded-lg border px-3 py-2">추가</button>
           </div>
           <p class="text-xs text-gray-500">
-            도메인만 저장하세요. 예: <code>https://urln.vercel.app</code> (<code>/api/submit</code>은 자동으로 붙습니다)
+            도메인만 저장하세요. 예: <code>https://gourl.vercel.app</code> (<code>/api/submit</code>은 자동으로 붙습니다)
           </p>
         </div>
       </section>
@@ -100,7 +100,7 @@ GitHub Pages 정적 프런트엔드 → Vercel Serverless(API) → Notion 저장
 
       apiAdd.addEventListener('click', ()=>{
         const base = normalizeBase(apiInput.value);
-        if(!isValidBase(base)) return show('유효한 엔드포인트를 입력하세요 (예: https://urln.vercel.app)', false);
+        if(!isValidBase(base)) return show('유효한 엔드포인트를 입력하세요 (예: gourl.vercel.app)', false);
         const list = loadList();
         if(!list.includes(base)){ list.push(base); saveList(list); }
         renderSelect();
