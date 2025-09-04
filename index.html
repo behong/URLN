@@ -1,5 +1,5 @@
 <!--
-GitHub Pages 정적 프런트엔드 → Vercel Serverless(API) → Notion 저장 (카테고리 제거/정리본)
+GitHub Pages 정적 프런트엔드 → Vercel Serverless(API) → Notion 저장 (엔드포인트 선택/저장 지원)
 -->
 <!DOCTYPE html>
 <html lang="ko">
@@ -13,56 +13,136 @@ GitHub Pages 정적 프런트엔드 → Vercel Serverless(API) → Notion 저장
     <main class="max-w-2xl mx-auto p-6">
       <h1 class="text-2xl font-bold mb-2">URL → Notion 전송</h1>
       <p class="text-sm text-gray-600 mb-6">
-        GitHub Pages에서 URL을 입력하면 Vercel 서버리스 API(<code>https://urln.vercel.app/api/submit</code>)를 통해 노션 DB로 저장됩니다.
+        GitHub Pages에서 URL을 입력하면 Vercel 서버리스 API를 통해 노션 DB로 저장됩니다.
       </p>
 
-      <!-- 고정 API 엔드포인트 -->
-      <input type="hidden" id="apiBase" value="https://urln.vercel.app" />
+      <!-- 엔드포인트 선택/저장 UI -->
+      <section class="mb-6 rounded-xl border bg-white p-4">
+        <h2 class="font-semibold mb-2">API 엔드포인트 선택/저장</h2>
+        <div class="flex flex-col gap-2">
+          <div class="flex gap-2">
+            <select id="apiSelect" class="flex-1 rounded-lg border border-gray-300 px-3 py-2"></select>
+            <button type="button" id="apiSetDefault" class="rounded-lg border px-3 py-2">기본으로</button>
+            <button type="button" id="apiRemove" class="rounded-lg border px-3 py-2">삭제</button>
+          </div>
+          <div class="flex gap-2">
+            <input id="apiInput" type="url" placeholder="https://example.vercel.app"
+              class="flex-1 rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
+            <button type="button" id="apiAdd" class="rounded-lg border px-3 py-2">추가</button>
+          </div>
+          <p class="text-xs text-gray-500">
+            도메인만 저장하세요. 예: <code>https://urln.vercel.app</code> (<code>/api/submit</code>은 자동으로 붙습니다)
+          </p>
+        </div>
+      </section>
 
       <!-- 폼: URL/제목/메모만 사용 -->
       <form id="urlForm" class="space-y-4">
         <div>
           <label class="block text-sm font-medium mb-1" for="url">URL</label>
-          <input id="url" type="url" required placeholder="https://example.com/post" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
+          <input id="url" type="url" required placeholder="https://example.com/post"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1" for="title">제목(선택)</label>
-          <input id="title" type="text" placeholder="자동으로 페이지 제목으로 저장" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
+          <input id="title" type="text" placeholder="자동으로 페이지 제목으로 저장"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1" for="notes">메모(선택)</label>
-          <textarea id="notes" rows="3" placeholder="간단 메모를 함께 보낼 수 있어요" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10"></textarea>
+          <textarea id="notes" rows="3" placeholder="간단 메모를 함께 보낼 수 있어요"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/10"></textarea>
         </div>
-        <button type="submit" class="w-full rounded-xl bg-black text-white py-3 font-semibold hover:bg-black/90">노션으로 전송</button>
+        <button type="submit"
+          class="w-full rounded-xl bg-black text-white py-3 font-semibold hover:bg-black/90">노션으로 전송</button>
       </form>
 
       <div id="result" class="mt-6 hidden"></div>
-
-      <section class="mt-12 prose prose-sm">
-        <h2>README</h2>
-        <ul>
-          <li>API 엔드포인트는 <code>https://urln.vercel.app/api/submit</code> 으로 고정.</li>
-          <li>노션 DB 속성: <code>Title</code>(title), <code>URL</code>(url), <code>Notes</code>(rich_text).</li>
-          <li><code>Notes</code>는 DB 속성과 페이지 본문(children) 모두에 기록됩니다.</li>
-        </ul>
-      </section>
     </main>
 
     <script>
       const form = document.getElementById('urlForm');
       const result = document.getElementById('result');
-      const apiBase = document.getElementById('apiBase');
 
-      function show(msg, ok = true) {
+      const apiSelect = document.getElementById('apiSelect');
+      const apiInput = document.getElementById('apiInput');
+      const apiAdd = document.getElementById('apiAdd');
+      const apiRemove = document.getElementById('apiRemove');
+      const apiSetDefault = document.getElementById('apiSetDefault');
+
+      const KEY_LIST = 'apiEndpoints:list';
+      const KEY_DEFAULT = 'apiEndpoints:default';
+
+      function loadList(){ try { return JSON.parse(localStorage.getItem(KEY_LIST)||'[]'); } catch { return []; } }
+      function saveList(list){ localStorage.setItem(KEY_LIST, JSON.stringify(list)); }
+      function getDefault(){ return localStorage.getItem(KEY_DEFAULT)||''; }
+      function setDefault(v){ localStorage.setItem(KEY_DEFAULT, v); }
+      function normalizeBase(v){ return (v||'').trim().replace(/\/$/, ''); }
+      function isValidBase(v){ try { const u=new URL(v); return /^https?:$/.test(u.protocol); } catch { return false; } }
+
+      function renderSelect(){
+        const list = loadList();
+        const def = getDefault();
+        apiSelect.innerHTML='';
+        list.forEach(b=>{
+          const opt=document.createElement('option');
+          opt.value=b; opt.textContent = b + (b===def ? '  • 기본' : '');
+          apiSelect.appendChild(opt);
+        });
+        if(def){ apiSelect.value = def; }
+      }
+
+      (function initApiList(){
+        let list = loadList();
+        if(!list.length){ list = ['https://urln.vercel.app']; saveList(list); setDefault(list[0]); }
+        renderSelect();
+      })();
+
+      apiAdd.addEventListener('click', ()=>{
+        const base = normalizeBase(apiInput.value);
+        if(!isValidBase(base)) return show('유효한 엔드포인트를 입력하세요 (예: https://urln.vercel.app)', false);
+        const list = loadList();
+        if(!list.includes(base)){ list.push(base); saveList(list); }
+        renderSelect();
+        apiSelect.value = base;
+        apiInput.value='';
+      });
+
+      apiRemove.addEventListener('click', ()=>{
+        const sel = apiSelect.value;
+        if(!sel) return;
+        let list = loadList().filter(b=>b!==sel);
+        saveList(list);
+        if(getDefault()===sel){ setDefault(list[0]||''); }
+        renderSelect();
+      });
+
+      apiSetDefault.addEventListener('click', ()=>{
+        const sel = apiSelect.value;
+        if(!sel) return;
+        setDefault(sel);
+        renderSelect();
+        show('기본 엔드포인트가 설정되었습니다: '+sel, true);
+      });
+
+      function getApiBase(){
+        const sel = normalizeBase(apiSelect.value);
+        if(isValidBase(sel)) return sel;
+        const def = normalizeBase(getDefault());
+        if(isValidBase(def)) return def;
+        return '';
+      }
+
+      function show(msg, ok = true){
         result.className = 'mt-6 rounded-xl border p-4 ' + (ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50');
         result.innerHTML = '<pre class="text-sm whitespace-pre-wrap">' + msg + '</pre>';
         result.classList.remove('hidden');
       }
 
-      form.addEventListener('submit', async (e) => {
+      form.addEventListener('submit', async (e)=>{
         e.preventDefault();
-        const base = (apiBase.value || '').replace(/\/$/, '');
-        if (!base) return show('API 엔드포인트가 비어 있습니다.', false);
+        const base = getApiBase();
+        if(!base) return show('API 엔드포인트가 비어 있습니다.', false);
 
         const url = (document.getElementById('url').value || '').trim();
         const title = (document.getElementById('title').value || '').trim();
