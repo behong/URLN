@@ -1,8 +1,8 @@
 
 import React, { useState, useCallback } from 'react';
-import { URLForm } from './components/URLForm';
-import { StatusMessage } from './components/StatusMessage';
-import type { Status } from './types';
+import { URLForm } from './components/URLForm.tsx';
+import { StatusMessage } from './components/StatusMessage.tsx';
+import type { Status } from './types.ts';
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<Status>('idle');

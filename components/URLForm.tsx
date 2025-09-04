@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { LoadingSpinner } from './icons/LoadingSpinner';
+import { LoadingSpinner } from './icons/LoadingSpinner.tsx';
 
 interface URLFormProps {
   onSubmit: (url: string) => void;

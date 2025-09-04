@@ -1,9 +1,9 @@
 
 import React from 'react';
-import type { Status } from '../types';
-import { LoadingSpinner } from './icons/LoadingSpinner';
-import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import type { Status } from '../types.ts';
+import { LoadingSpinner } from './icons/LoadingSpinner.tsx';
+import { CheckCircleIcon } from './icons/CheckCircleIcon.tsx';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon.tsx';
 
 interface StatusMessageProps {
   status: Status;
