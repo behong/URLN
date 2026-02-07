@@ -103,12 +103,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // --- 여기서부터 텔레그램 전송 로직 추가 ---
     const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-     console.log("TELEGRAM_TOKEN",TELEGRAM_TOKEN);
-     console.log("TELEGRAM_CHAT_ID",TELEGRAM_CHAT_ID);
+
     if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID) {
       try {
         const message = `🚀 **노션 등록 완료**\n\n📌 **제목**: ${title || url}\n📝 **메모**: ${notes || '없음'}\n🔗 [링크 바로가기](${url})`;
-        console.log("messs",message);
+        
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
