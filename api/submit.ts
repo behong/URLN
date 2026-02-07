@@ -99,7 +99,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const text = await r.text();
       return res.status(r.status).json({ ok: false, error: 'notion_error', detail: text });
     }
-
+    
+    // --- 여기서부터 텔레그램 전송 로직 추가 ---
+    const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+    const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+    
+    if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID) {
+      try {
+        const message = `🚀 **노션 등록 완료**\n\n📌 **제목**: ${title || url}\n📝 **메모**: ${notes || '없음'}\n🔗 [링크 바로가기](${url})`;
+        
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: message,
+            parse_mode: 'Markdown', // 링크 등을 예쁘게 표시
+          }),
+        });
+      } catch (teleErr) {
+        console.error('Telegram notification failed:', teleErr);
+        // 텔레그램 실패가 노션 등록 실패는 아니므로 응답은 그대로 진행합니다.
+      }
+    }
+    // --- 텔레그램 로직 끝 ---
+    
     const data = (await r.json()) as { id: string };
     return res.status(200).json({ ok: true, page_id: data.id });
   } catch (err: any) {
